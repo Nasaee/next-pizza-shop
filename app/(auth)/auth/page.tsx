@@ -1,9 +1,15 @@
 'use client';
 
+import { useState, useEffect, FormEvent, Suspense } from 'react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { ChevronLeft, Loader2 } from 'lucide-react';
+import { getSignupFormData, handleSignupSubmit } from '@/actions/auth/signup';
+import { getLoginFormData, handleLoginSubmit } from '@/actions/auth/login';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useState } from 'react';
+import { toast } from 'sonner';
+import { IAttributes } from 'oneentry/dist/base/utils';
 
 interface SignUpFormData {
   email: string;
@@ -16,19 +22,95 @@ interface LoginFormData {
   password: string;
 }
 
-function AuthPage() {
+function AuthForm() {
   const [isSignUp, setIsSignUp] = useState(true);
 
   const router = useRouter();
+  const searchParams = useSearchParams();
 
+  const [formData, setFormData] = useState<IAttributes[]>([]);
+  const [inputValues, setInputValues] = useState<
+    Partial<SignUpFormData & LoginFormData>
+  >({});
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>('Not valid');
 
-  const handleSubmit = () => {};
+  useEffect(() => {
+    const type = searchParams.get('type');
+    setIsSignUp(type !== 'login');
+  }, [searchParams]);
 
+  useEffect(() => {
+    setIsLoading(true);
+    setError(null);
+    const fetchData = isSignUp ? getSignupFormData : getLoginFormData;
+    fetchData()
+      .then((data) => setFormData(data))
+      .catch((err) => setError(`Failed to fetch form data: ${err}`))
+      .finally(() => setIsLoading(false));
+  }, [isSignUp]);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setInputValues((prevValues) => ({ ...prevValues, [name]: value }));
+  };
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    setError(null);
+
+    try {
+      if (isSignUp) {
+        console.log('Submitting Sign Up Form:', inputValues);
+
+        if (inputValues.email && inputValues.password && inputValues.name) {
+          const response = await handleSignupSubmit(
+            inputValues as SignUpFormData
+          );
+
+          if ('identifier' in response) {
+            setInputValues({});
+            setIsSignUp(false);
+            toast('User has been created', {
+              description: 'Please enter your credentials to log in.',
+              duration: 5000,
+            });
+          } else {
+            setError(response.message);
+          }
+        } else {
+          setError('Please fill out all required fields.');
+        }
+      } else {
+        if (inputValues.email && inputValues.password) {
+          const response = await handleLoginSubmit(
+            inputValues as LoginFormData
+          );
+          if (response.message) {
+            setError(response.message);
+          }
+        } else {
+          setError('Please fill out all required fields.');
+        }
+      }
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'An error occurred. Please try again.'
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Toggles between signup and login forms.
   const toggleForm = () => {
     setIsSignUp(!isSignUp);
+    setError(null);
+    setInputValues({});
   };
 
   return (
@@ -50,7 +132,7 @@ function AuthPage() {
           <div className='text-center mb-6 xs:mb-7 sm:mb-8 lg:mb-10'>
             <div className='inline-flex items-center px-3 xs:px-4 py-1.5 xs:py-2 rounded-full bg-orange-100 dark:bg-orange-900/30 border border-orange-200 dark:border-orange-800 mb-4 xs:mb-5 sm:mb-6'>
               <span className='text-xs xs:text-sm font-semibold text-orange-800 dark:text-orange-200'>
-                {isSignUp ? '🎉 Join SahandPizza Family' : '🍕 Welcome Back'}
+                {isSignUp ? '🎉 Join NasaPizza Family' : '🍕 Welcome Back'}
               </span>
             </div>
 
@@ -61,8 +143,8 @@ function AuthPage() {
             </h2>
             <p className='text-sm xs:text-base sm:text-lg md:text-xl lg:text-2xl text-gray-600 dark:text-gray-300 leading-relaxed max-w-2xl mx-auto px-2'>
               {isSignUp
-                ? 'Join SahandPizza today and discover exclusive deals on authentic Italian cuisine delivered hot to your door!'
-                : 'Welcome back to SahandPizza! Log in to continue your delicious journey with us.'}
+                ? 'Join NasaPizza today and discover exclusive deals on authentic Italian cuisine delivered hot to your door!'
+                : 'Welcome back to NasaPizza! Log in to continue your delicious journey with us.'}
             </p>
           </div>
 
@@ -82,6 +164,31 @@ function AuthPage() {
               className='space-y-4 xs:space-y-5 sm:space-y-6'
               onSubmit={handleSubmit}
             >
+              {formData.map((field) => (
+                <div key={field.marker} className='space-y-1.5 xs:space-y-2'>
+                  <Label
+                    htmlFor={field.marker}
+                    className='text-base xs:text-lg font-semibold text-gray-700 dark:text-gray-300'
+                  >
+                    {field.localizeInfos.title}
+                  </Label>
+                  <Input
+                    id={field.marker}
+                    type={field.marker === 'password' ? 'password' : 'text'}
+                    name={field.marker}
+                    className='h-12 xs:h-13 sm:h-14 text-base xs:text-lg rounded-xl xs:rounded-2xl border-2 border-orange-200 dark:border-orange-700 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm hover:border-orange-300 dark:hover:border-orange-600 focus:border-orange-500 dark:focus:border-orange-400 transition-all duration-200 shadow-sm'
+                    placeholder={field.localizeInfos.title}
+                    value={
+                      inputValues[
+                        field.marker as keyof (SignUpFormData & LoginFormData)
+                      ] || ''
+                    }
+                    onChange={handleInputChange}
+                    disabled={isSubmitting}
+                  />
+                </div>
+              ))}
+
               {error && (
                 <div className='p-3 xs:p-4 rounded-xl xs:rounded-2xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800'>
                   <p className='text-red-600 dark:text-red-400 text-center font-medium text-sm xs:text-base'>
@@ -104,7 +211,7 @@ function AuthPage() {
                       </span>
                     </div>
                   ) : isSignUp ? (
-                    'Join SahandPizza Family! 🍕'
+                    'Join NasaPizza Family! 🍕'
                   ) : (
                     'Welcome Back! 🎉'
                   )}
@@ -118,7 +225,7 @@ function AuthPage() {
             <p className='text-sm xs:text-base sm:text-lg text-gray-600 dark:text-gray-300 text-center'>
               {isSignUp
                 ? 'Already part of our pizza family?'
-                : 'New to SahandPizza?'}
+                : 'New to NasaPizza?'}
             </p>
             <Button
               variant='link'
@@ -134,4 +241,10 @@ function AuthPage() {
   );
 }
 
-export default AuthPage;
+export default function Component() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <AuthForm />
+    </Suspense>
+  );
+}

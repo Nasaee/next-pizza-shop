@@ -4,7 +4,7 @@ import type { IError } from 'oneentry/dist/base/utils';
 
 // Import helper functions for handling refresh tokens
 
-import storeRefreshToken from '@/actions/auth/storeREfreshToken';
+import storeRefreshToken from '@/actions/auth/storeRefreshToken';
 import retrieveRefreshToken from '@/actions/auth/retrieveRefreshToken';
 
 // Define the type for the API client, which can initially be `null`
